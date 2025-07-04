@@ -89,7 +89,7 @@ export default function Home() {
         deviceId: { exact: selectedCamera },
         focusMode: 'continuous',
         exposureMode: 'continuous',
-        whiteBalanceMode: 'continuous'
+        whiteBalanceMode: 'continuous',
       };
 
       const config = {
@@ -151,6 +151,13 @@ export default function Home() {
 
         // 스캔 중지 후 수동 재시작
         stopScanning();
+
+        // 1초 후 자동 재시작 (지속적인 스캔)
+        setTimeout(() => {
+          if (scannerRef.current && !scannedCode) {
+            startScanning();
+          }
+        }, 1000);
       });
     } catch (err) {
       console.error('스캔 시작 실패:', err);
@@ -207,7 +214,7 @@ export default function Home() {
       <h1 className='text-2xl font-bold text-center mb-6'>📱 CODE39 스캐너</h1>
 
       {/* 카메라 선택 */}
-      {cameras.length >= 1 && (
+      {cameras.length > 1 && (
         <div className='mb-4'>
           <label className='block text-sm font-medium text-gray-700 mb-2'>📷 카메라 선택</label>
           <select
@@ -216,8 +223,6 @@ export default function Home() {
             disabled={isScanning}
             className='w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100'
           >
-            <option value='environment'>📷 후면 카메라 (권장)</option>
-            <option value='user'>🤳 전면 카메라</option>
             {cameras.map((camera) => (
               <option key={camera.deviceId} value={camera.deviceId}>
                 📹 {camera.label}
@@ -237,11 +242,7 @@ export default function Home() {
                 <p className='text-sm'>카메라 준비 완료</p>
                 {cameras.length > 1 && (
                   <p className='text-xs mt-1 opacity-75'>
-                    {selectedCamera === 'environment'
-                      ? '후면 카메라'
-                      : selectedCamera === 'user'
-                      ? '전면 카메라'
-                      : cameras.find((c) => c.deviceId === selectedCamera)?.label}
+                    {cameras.find((c) => c.deviceId === selectedCamera)?.label || '카메라 준비 중'}
                   </p>
                 )}
               </div>
@@ -264,7 +265,7 @@ export default function Home() {
         {!isScanning ? (
           <button
             onClick={startScanning}
-            disabled={!Quagga || cameras.length === 0}
+            disabled={!Quagga || cameras.length === 0 || !selectedCamera}
             className='w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400'
           >
             📸 스캔 시작
@@ -306,6 +307,7 @@ export default function Home() {
         <h4 className='font-semibold text-blue-800 mb-1'>💡 사용법</h4>
         <ul className='text-blue-700 text-sm space-y-1'>
           <li>• CODE39 바코드를 빨간 테두리에 맞춰주세요</li>
+          <li>• 바코드와 카메라 사이 거리를 10-20cm 유지하세요</li>
           <li>
             • 바코드 스캔에는 <strong>후면 카메라</strong>가 더 좋습니다
           </li>
