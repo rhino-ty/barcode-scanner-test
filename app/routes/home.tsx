@@ -125,6 +125,8 @@ export default function Home() {
             frameRate: { ideal: 30, min: 15 },
             deviceId: { exact: selectedCamera },
             focusMode: 'continuous',
+            exposureMode: 'continuous',
+            whiteBalanceMode: 'continuous',
           },
         },
         locator: { patchSize: 'medium', halfSample: true },
@@ -219,7 +221,6 @@ export default function Home() {
 const Header = () => (
   <header className='text-center'>
     <h1 className='text-3xl sm:text-4xl font-bold text-indigo-600 dark:text-indigo-400'>CODE39 바코드 스캐너</h1>
-    <p className='mt-2 text-lg text-slate-600 dark:text-slate-400'>웹 기반의 빠르고 정확한 스캐너</p>
   </header>
 );
 
@@ -233,7 +234,11 @@ const LoadingScreen = () => (
 
 const ScannerUI = ({ scannerRef, scannerState, error, cameras, selectedCamera, onCameraChange, isScanning }: any) => (
   <div className='bg-white dark:bg-slate-800/50 p-4 rounded-2xl shadow-lg flex flex-col space-y-4'>
-    <div ref={scannerRef} className='relative w-full aspect-[4/3] bg-black rounded-xl overflow-hidden shadow-inner'>
+    <div
+      ref={scannerRef}
+      // aspect-[4/3] 대신 aspect-video 사용함. 왜냐하면 비디오 스트림의 기본 비율이 16:9이기 때문
+      className='relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-inner [&>video]:w-full [&>video]:h-full [&>video]:object-cover'
+    >
       <div
         className={`absolute inset-0 transition-all duration-300 ${
           scannerState === 'success' ? 'bg-green-500/30' : ''
