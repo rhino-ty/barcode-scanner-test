@@ -107,16 +107,17 @@ export default function Home() {
         }
 
         // 중복 감지 방지를 위한 일시 중지
+        Quagga.stop();
+        setIsScanning(false);
+
+        // 3초 후 자동 재시작 (사용자가 결과를 확인할 시간 제공)
         setTimeout(() => {
-          if (Quagga && isScanning) {
-            Quagga.stop();
-            setTimeout(() => {
-              if (scannerRef.current) {
-                startScanning();
-              }
-            }, 1000);
+          if (scannerRef.current && !error) {
+            // error 상태도 체크
+            setIsScanning(true);
+            startScanning();
           }
-        }, 500);
+        }, 3000);
       });
     } catch (err) {
       console.error('스캔 시작 실패:', err);
