@@ -11,11 +11,19 @@ export function meta({}: Route.MetaArgs) {
 // Quagga2 동적 임포트
 let Quagga: any = null;
 
+interface CameraDevice {
+  deviceId: string;
+  label: string;
+  kind: string;
+}
+
 export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
   const [scannedCode, setScannedCode] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [cameras, setCameras] = useState<CameraDevice[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState<string>('environment'); // 기본값: 후면 카메라
   const scannerRef = useRef<HTMLDivElement>(null);
 
   // Quagga2 로드
@@ -26,6 +34,7 @@ export default function Home() {
       try {
         const QuaggaModule = await import('@ericblade/quagga2');
         Quagga = QuaggaModule.default;
+        await loadCameras();
         setIsLoading(false);
       } catch (err) {
         console.error('Quagga2 로드 실패:', err);
@@ -37,6 +46,43 @@ export default function Home() {
     loadQuagga();
   }, []);
 
+  // 사용 가능한 카메라 목록 로드
+  const loadCameras = async () => {
+    try {
+      // 카메라 권한 요청
+      await navigator.mediaDevices.getUserMedia({ video: true });
+
+      // 사용 가능한 기기 목록 가져오기
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices
+        .filter((device) => device.kind === 'videoinput')
+        .map((device) => ({
+          deviceId: device.deviceId,
+          label: device.label || `카메라 ${devices.indexOf(device) + 1}`,
+          kind: device.kind,
+        }));
+
+      setCameras(videoDevices);
+
+      // 후면 카메라가 있으면 기본 선택
+      const backCamera = videoDevices.find(
+        (camera) =>
+          camera.label.toLowerCase().includes('back') ||
+          camera.label.toLowerCase().includes('rear') ||
+          camera.label.toLowerCase().includes('environment'),
+      );
+
+      if (backCamera) {
+        setSelectedCamera(backCamera.deviceId);
+      } else if (videoDevices.length > 0) {
+        setSelectedCamera(videoDevices[0].deviceId);
+      }
+    } catch (err) {
+      console.error('카메라 목록 로드 실패:', err);
+      setError('카메라 접근 권한이 필요합니다.');
+    }
+  };
+
   // 스캔 시작
   const startScanning = async () => {
     if (!Quagga || !scannerRef.current) return;
@@ -44,21 +90,32 @@ export default function Home() {
     setError('');
 
     try {
+      // 카메라 제약 조건 설정
+      const constraints: any = {
+        width: 1280,
+        height: 720,
+        frameRate: 30,
+      };
+
+      // 카메라 선택 방식 결정
+      if (selectedCamera === 'environment' || selectedCamera === 'user') {
+        // facingMode 사용 (전면/후면)
+        constraints.facingMode = selectedCamera;
+      } else {
+        // 특정 deviceId 사용
+        constraints.deviceId = { exact: selectedCamera };
+      }
+
       const config = {
         inputStream: {
           name: 'Live',
           type: 'LiveStream',
           target: scannerRef.current,
-          constraints: {
-            width: 1280,
-            height: 720,
-            facingMode: 'environment',
-            frameRate: 30,
-          },
+          constraints,
         },
         locator: {
           halfSample: true,
-          patchSize: 'small',
+          patchSize: 'medium',
           debug: {
             showCanvas: false,
             showPatches: false,
@@ -81,13 +138,13 @@ export default function Home() {
           multiple: false,
         },
         locate: true,
-        frequency: 5,
+        frequency: 10,
       };
 
       Quagga.init(config, (err: any) => {
         if (err) {
           console.error('초기화 실패:', err);
-          setError('카메라를 시작할 수 없습니다.');
+          setError('선택한 카메라를 시작할 수 없습니다.');
           return;
         }
 
@@ -106,18 +163,8 @@ export default function Home() {
           navigator.vibrate(200);
         }
 
-        // 중복 감지 방지를 위한 일시 중지
-        Quagga.stop();
-        setIsScanning(false);
-
-        // 3초 후 자동 재시작 (사용자가 결과를 확인할 시간 제공)
-        setTimeout(() => {
-          if (scannerRef.current && !error) {
-            // error 상태도 체크
-            setIsScanning(true);
-            startScanning();
-          }
-        }, 3000);
+        // 스캔 중지 후 수동 재시작
+        stopScanning();
       });
     } catch (err) {
       console.error('스캔 시작 실패:', err);
@@ -139,6 +186,19 @@ export default function Home() {
     }
   };
 
+  // 카메라 변경 시 재시작
+  const handleCameraChange = async (newCameraId: string) => {
+    setSelectedCamera(newCameraId);
+
+    if (isScanning) {
+      stopScanning();
+      // 잠깐 기다린 후 새 카메라로 재시작
+      setTimeout(() => {
+        startScanning();
+      }, 500);
+    }
+  };
+
   // 정리
   useEffect(() => {
     return () => {
@@ -151,7 +211,7 @@ export default function Home() {
     return (
       <div className='p-8 text-center'>
         <h1 className='text-2xl font-bold mb-4'>📱 바코드 스캐너</h1>
-        <p>로딩 중...</p>
+        <p>카메라를 준비하는 중...</p>
       </div>
     );
   }
@@ -159,6 +219,27 @@ export default function Home() {
   return (
     <div className='p-4 max-w-md mx-auto'>
       <h1 className='text-2xl font-bold text-center mb-6'>📱 CODE39 스캐너</h1>
+
+      {/* 카메라 선택 */}
+      {cameras.length >= 1 && (
+        <div className='mb-4'>
+          <label className='block text-sm font-medium text-gray-700 mb-2'>📷 카메라 선택</label>
+          <select
+            value={selectedCamera}
+            onChange={(e) => handleCameraChange(e.target.value)}
+            disabled={isScanning}
+            className='w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100'
+          >
+            <option value='environment'>📷 후면 카메라 (권장)</option>
+            <option value='user'>🤳 전면 카메라</option>
+            {cameras.map((camera) => (
+              <option key={camera.deviceId} value={camera.deviceId}>
+                📹 {camera.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* 카메라 영역 */}
       <div className='mb-4'>
@@ -168,13 +249,22 @@ export default function Home() {
               <div className='text-center'>
                 <div className='text-4xl mb-2'>📷</div>
                 <p className='text-sm'>카메라 준비 완료</p>
+                {cameras.length > 1 && (
+                  <p className='text-xs mt-1 opacity-75'>
+                    {selectedCamera === 'environment'
+                      ? '후면 카메라'
+                      : selectedCamera === 'user'
+                      ? '전면 카메라'
+                      : cameras.find((c) => c.deviceId === selectedCamera)?.label}
+                  </p>
+                )}
               </div>
             </div>
           )}
 
           {isScanning && (
             <div className='absolute inset-0 flex items-center justify-center'>
-              <div className='border-2 border-red-500 border-dashed w-48 h-16 rounded'></div>
+              <div className='border-2 border-red-500 border-dashed w-48 h-16 rounded animate-pulse'></div>
             </div>
           )}
         </div>
@@ -188,7 +278,7 @@ export default function Home() {
         {!isScanning ? (
           <button
             onClick={startScanning}
-            disabled={!Quagga}
+            disabled={!Quagga || cameras.length === 0}
             className='w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400'
           >
             📸 스캔 시작
@@ -208,24 +298,40 @@ export default function Home() {
         <div className='p-4 bg-green-100 border border-green-400 rounded-lg'>
           <h3 className='font-semibold text-green-800 mb-2'>✅ 스캔 성공!</h3>
           <p className='font-mono text-lg font-bold text-green-900 break-all'>{scannedCode}</p>
-          <button
-            onClick={() => navigator.clipboard?.writeText(scannedCode)}
-            className='mt-2 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700'
-          >
-            📋 복사
-          </button>
+          <div className='mt-2 flex gap-2'>
+            <button
+              onClick={() => navigator.clipboard?.writeText(scannedCode)}
+              className='bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700'
+            >
+              📋 복사
+            </button>
+            <button
+              onClick={() => setScannedCode('')}
+              className='bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600'
+            >
+              🗑️ 지우기
+            </button>
+          </div>
         </div>
       )}
 
       {/* 도움말 */}
       <div className='mt-6 p-3 bg-blue-50 rounded-lg'>
         <h4 className='font-semibold text-blue-800 mb-1'>💡 사용법</h4>
-        <ul className='text-blue-700 text-sm'>
+        <ul className='text-blue-700 text-sm space-y-1'>
           <li>• CODE39 바코드를 빨간 테두리에 맞춰주세요</li>
+          <li>
+            • 바코드 스캔에는 <strong>후면 카메라</strong>가 더 좋습니다
+          </li>
           <li>• 충분한 조명 환경에서 사용하세요</li>
           <li>• HTTPS 환경에서만 카메라가 작동합니다</li>
         </ul>
       </div>
+
+      {/* 카메라 정보 */}
+      {cameras.length > 0 && (
+        <div className='mt-4 p-2 bg-gray-50 rounded text-xs text-gray-600'>💡 감지된 카메라: {cameras.length}개</div>
+      )}
     </div>
   );
 }
