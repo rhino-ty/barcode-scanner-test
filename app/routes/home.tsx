@@ -1,35 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Route } from './+types/home';
-
-// --- 아이콘 SVG 컴포넌트 ---
-const CameraIcon = () => (
-  <svg xmlns='http://www.w3.org/2000/svg' className='h-6 w-6' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-    <path
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      strokeWidth={2}
-      d='M15 10l4.55a1 1 0 01.55.89V14a1 1 0 01-1.55.89L15 14M5 9a2 2 0 012-2h4a2 2 0 012 2v6a2 2 0 01-2 2H7a2 2 0 01-2-2V9z'
-    />
-  </svg>
-);
-
-const ScanIcon = () => (
-  <svg xmlns='http://www.w3.org/2000/svg' className='h-6 w-6' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-    <path
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      strokeWidth={2}
-      d='M12 4v1m0 14v1m8-9h-1M5 12H4m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z'
-    />
-  </svg>
-);
-
-const StopIcon = () => (
-  <svg xmlns='http://www.w3.org/2000/svg' className='h-6 w-6' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M21 12a9 9 0 11-18 0 9 9 0 0118 0z' />
-    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M9 10h6' />
-  </svg>
-);
+import Layout from '../components/Layout';
+import { CameraIcon, ScanIcon, StopIcon } from '../components/icons';
 
 // --- 메타 데이터 ---
 export function meta({}: Route.MetaArgs) {
@@ -125,8 +97,6 @@ export default function Home() {
             frameRate: { ideal: 30, min: 15 },
             deviceId: { exact: selectedCamera },
             focusMode: 'continuous',
-            exposureMode: 'continuous',
-            whiteBalanceMode: 'continuous',
           },
         },
         locator: { patchSize: 'medium', halfSample: true },
@@ -184,36 +154,34 @@ export default function Home() {
   if (isLoading) return <LoadingScreen />;
 
   return (
-    <div className='min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200'>
-      <main className='max-w-6xl mx-auto p-4 lg:p-8'>
-        <Header />
-        <div className='grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8'>
-          <ScannerUI
-            scannerRef={scannerRef}
+    <Layout>
+      <Header />
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8'>
+        <ScannerUI
+          scannerRef={scannerRef}
+          scannerState={scannerState}
+          error={error}
+          cameras={cameras}
+          selectedCamera={selectedCamera}
+          onCameraChange={handleCameraChange}
+          isScanning={scannerState === 'scanning'}
+        />
+        <div className='flex flex-col space-y-6'>
+          <ActionButtons
             scannerState={scannerState}
-            error={error}
-            cameras={cameras}
-            selectedCamera={selectedCamera}
-            onCameraChange={handleCameraChange}
-            isScanning={scannerState === 'scanning'}
+            onStartScan={startScanning}
+            onStopScan={stopScanning}
+            onReset={() => {
+              setScannedCode('');
+              setError('');
+              setScannerState('idle');
+            }}
           />
-          <div className='flex flex-col space-y-6'>
-            <ActionButtons
-              scannerState={scannerState}
-              onStartScan={startScanning}
-              onStopScan={stopScanning}
-              onReset={() => {
-                setScannedCode('');
-                setError('');
-                setScannerState('idle');
-              }}
-            />
-            {scannedCode && <ResultUI scannedCode={scannedCode} onClear={() => setScannedCode('')} />}
-            <InfoPanel />
-          </div>
+          {scannedCode && <ResultUI scannedCode={scannedCode} onClear={() => setScannedCode('')} />}
+          <InfoPanel />
         </div>
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 }
 
@@ -226,7 +194,7 @@ const Header = () => (
 
 const LoadingScreen = () => (
   <div className='min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900'>
-    <ScanIcon />
+    <ScanIcon className='w-16 h-16 text-indigo-500 dark:text-indigo-400 animate-pulse' />
     <h1 className='text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-4'>스캐너 로딩 중...</h1>
     <p className='text-slate-500 dark:text-slate-400'>카메라 권한을 확인하고 있습니다.</p>
   </div>
@@ -300,6 +268,9 @@ const CameraSelect = ({ cameras, selectedCamera, onChange, disabled }: any) => (
 
 const ActionButtons = ({ scannerState, onStartScan, onStopScan, onReset }: any) => {
   const isScanning = scannerState === 'scanning';
+  const isSuccess = scannerState === 'success';
+  const isError = scannerState === 'error';
+
   return (
     <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
       <button
