@@ -22,6 +22,7 @@ export default function Home() {
   const [scannedCode, setScannedCode] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isScanStarting, setIsScanStarting] = useState(false);
   const [cameras, setCameras] = useState<CameraDevice[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<string>(''); // 기본값: 첫 번째 카메라
   const scannerRef = useRef<HTMLDivElement>(null);
@@ -79,6 +80,8 @@ export default function Home() {
     if (!Quagga || !scannerRef.current) return;
 
     setError('');
+    setIsScanStarting(true);
+    setScannedCode('');
 
     try {
       // 카메라 제약 조건 설정 (고해상도 + 자동 포커싱)
@@ -136,6 +139,7 @@ export default function Home() {
 
         Quagga.start();
         setIsScanning(true);
+        setIsScanStarting(false);
       });
 
       // 바코드 감지
@@ -162,6 +166,7 @@ export default function Home() {
     } catch (err) {
       console.error('스캔 시작 실패:', err);
       setError('스캔을 시작할 수 없습니다.');
+      setIsScanStarting(false);
     }
   };
 
@@ -234,8 +239,16 @@ export default function Home() {
 
       {/* 카메라 영역 */}
       <div className='mb-4'>
+        {isScanning && (
+          <div className='mb-2 text-center text-sm text-gray-600'>
+            <div className='inline-flex items-center gap-2'>
+              <div className='w-2 h-2 bg-red-500 rounded-full animate-pulse'></div>
+              바코드를 인식 범위에 맞춰주세요
+            </div>
+          </div>
+        )}
         <div ref={scannerRef} className='w-full h-64 bg-black rounded-lg relative overflow-hidden'>
-          {!isScanning && (
+          {!isScanning && !isScanStarting && (
             <div className='absolute inset-0 flex items-center justify-center text-white'>
               <div className='text-center'>
                 <div className='text-4xl mb-2'>📷</div>
@@ -245,6 +258,15 @@ export default function Home() {
                     {cameras.find((c) => c.deviceId === selectedCamera)?.label || '카메라 준비 중'}
                   </p>
                 )}
+              </div>
+            </div>
+          )}
+
+          {isScanStarting && (
+            <div className='absolute inset-0 flex items-center justify-center text-white'>
+              <div className='text-center'>
+                <div className='animate-spin text-4xl mb-2'>📷</div>
+                <p className='text-sm'>카메라 시작 중...</p>
               </div>
             </div>
           )}
@@ -265,10 +287,17 @@ export default function Home() {
         {!isScanning ? (
           <button
             onClick={startScanning}
-            disabled={!Quagga || cameras.length === 0 || !selectedCamera}
-            className='w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400'
+            disabled={!Quagga || cameras.length === 0 || !selectedCamera || isScanStarting}
+            className='w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 flex items-center justify-center gap-2'
           >
-            📸 스캔 시작
+            {isScanStarting ? (
+              <>
+                <div className='animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full'></div>
+                시작 중...
+              </>
+            ) : (
+              <>📸 스캔 시작</>
+            )}
           </button>
         ) : (
           <button
