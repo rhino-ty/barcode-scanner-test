@@ -23,7 +23,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [cameras, setCameras] = useState<CameraDevice[]>([]);
-  const [selectedCamera, setSelectedCamera] = useState<string>('environment'); // 기본값: 후면 카메라
+  const [selectedCamera, setSelectedCamera] = useState<string>(''); // 기본값: 첫 번째 카메라
   const scannerRef = useRef<HTMLDivElement>(null);
 
   // Quagga2 로드
@@ -64,17 +64,8 @@ export default function Home() {
 
       setCameras(videoDevices);
 
-      // 후면 카메라가 있으면 기본 선택
-      const backCamera = videoDevices.find(
-        (camera) =>
-          camera.label.toLowerCase().includes('back') ||
-          camera.label.toLowerCase().includes('rear') ||
-          camera.label.toLowerCase().includes('environment'),
-      );
-
-      if (backCamera) {
-        setSelectedCamera(backCamera.deviceId);
-      } else if (videoDevices.length > 0) {
+      // 첫 번째 카메라를 기본 선택
+      if (videoDevices.length > 0) {
         setSelectedCamera(videoDevices[0].deviceId);
       }
     } catch (err) {
@@ -90,21 +81,16 @@ export default function Home() {
     setError('');
 
     try {
-      // 카메라 제약 조건 설정
+      // 카메라 제약 조건 설정 (고해상도 + 자동 포커싱)
       const constraints: any = {
-        width: 1280,
-        height: 720,
-        frameRate: 30,
+        width: { ideal: 1920, min: 1280 },
+        height: { ideal: 1080, min: 720 },
+        frameRate: { ideal: 30, min: 15 },
+        deviceId: { exact: selectedCamera },
+        focusMode: 'continuous',
+        exposureMode: 'continuous',
+        whiteBalanceMode: 'continuous'
       };
-
-      // 카메라 선택 방식 결정
-      if (selectedCamera === 'environment' || selectedCamera === 'user') {
-        // facingMode 사용 (전면/후면)
-        constraints.facingMode = selectedCamera;
-      } else {
-        // 특정 deviceId 사용
-        constraints.deviceId = { exact: selectedCamera };
-      }
 
       const config = {
         inputStream: {
@@ -114,8 +100,8 @@ export default function Home() {
           constraints,
         },
         locator: {
-          halfSample: true,
-          patchSize: 'medium',
+          halfSample: false,
+          patchSize: 'large',
           debug: {
             showCanvas: false,
             showPatches: false,
@@ -138,7 +124,7 @@ export default function Home() {
           multiple: false,
         },
         locate: true,
-        frequency: 10,
+        frequency: 20,
       };
 
       Quagga.init(config, (err: any) => {
