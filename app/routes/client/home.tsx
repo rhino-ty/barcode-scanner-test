@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Route } from './+types/home';
-import Layout from '../components/Layout';
-import { CameraIcon, ScanIcon, StopIcon } from '../components/icons';
+import Layout from '../../components/Layout';
+import { CameraIcon, ScanIcon, StopIcon } from '../../components/icons';
 
 // --- 메타 데이터 ---
 export function meta({}: Route.MetaArgs) {
